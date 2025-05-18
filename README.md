@@ -208,9 +208,10 @@ local Toggle = Tab:CreateToggle({
             -- Initial role check, automatically turn off if Innocent
             local role = getRole()
             if role ~= "Sheriff" and role ~= "Murderer" then
-                Toggle:Set(false) -- Auto turn off if Innocent
-                return
+               ToggleAimbot:Set(false) -- Auto turn off if Innocent
+               return
             end
+
 
             -- Aimbot loop
             AimbotConnection = RunService.RenderStepped:Connect(function()
