@@ -76,6 +76,7 @@ local Toggle = Tab:CreateToggle({
             local character = player.Character
             if not character then return end
 
+            -- Create highlight for the player
             local highlight = character:FindFirstChild("ESP_Highlight")
             if not highlight then
                 highlight = Instance.new("Highlight")
@@ -88,9 +89,14 @@ local Toggle = Tab:CreateToggle({
             end
         end
 
+        -- Apply ESP for local player as well
+        local function createSelfESP()
+            createESP(LocalPlayer)  -- Apply ESP to the local player's character
+        end
+
         local function updateESPColors()
             for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
+                if player.Character then
                     local highlight = player.Character:FindFirstChild("ESP_Highlight")
                     if highlight then
                         local hasGun, hasKnife = getWeaponStatus(player)
@@ -122,12 +128,15 @@ local Toggle = Tab:CreateToggle({
         end
 
         if espEnabled then
-            -- Apply to existing players
+            -- Apply to existing players (including local player)
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer then
                     createESP(player)
                 end
             end
+
+            -- Also apply ESP to the local player
+            createSelfESP()
 
             -- Update color every frame
             table.insert(connections, RunService.RenderStepped:Connect(function()
@@ -150,6 +159,7 @@ local Toggle = Tab:CreateToggle({
         end
     end
 })
+
 
 local Toggle = Tab:CreateToggle({
     Name = "Aimbot (Sheriff & Murderer)",
