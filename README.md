@@ -179,91 +179,108 @@ local ToggleESP = Tab:CreateToggle({
 })
 
 
-local Toggle = Tab:CreateToggle({
-    Name = "Smooth Aimbot (Sheriff & Murderer)",
+local ToggleAimbot = Tab:CreateToggle({
+    Name = "Aimbot",
     CurrentValue = false,
-    Flag = "SmoothRoleAimbotToggle",
+    Flag = "AimbotToggle",
     Callback = function(Value)
-        if Value then
-            local Players = game:GetService("Players")
-            local RunService = game:GetService("RunService")
-            local LocalPlayer = Players.LocalPlayer
-            local AimbotConnection
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
+        local Mouse = LocalPlayer:GetMouse()
+        local RunService = game:GetService("RunService")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        local aimbotEnabled = Value
+        local targetPlayer = nil
+        local smoothness = 0.1 -- Smoothness factor for the aimbot
+        local autoShootEnabled = false -- Default: Auto-shoot is off
 
-            -- Role checks
-            local function getRole()
-                return LocalPlayer:FindFirstChild("Role") and LocalPlayer.Role.Value or nil
-            end
+        -- Function to get the role of the local player
+        local function getRole()
+            local role = nil
+            -- Assuming you have a way to identify the role (Sheriff, Murderer, Innocent)
+            -- Example: If it's stored in a Remote or the player's PlayerData
+            -- Here I'll assume a hypothetical RemoteEvent that gives the role.
+            local roleRemote = ReplicatedStorage:WaitForChild("PlayerRole") 
+            role = roleRemote:InvokeServer(LocalPlayer) 
+            return role
+        end
 
-            local function isSheriff()
-                return getRole() == "Sheriff"
-            end
+        -- Function to find the closest target (for Sheriff or Murderer)
+        local function getClosestTarget()
+            local closestTarget = nil
+            local shortestDistance = math.huge
 
-            local function isMurderer()
-                return getRole() == "Murderer"
-            end
-
-            -- Get the other role's player (exclude local player)
-            local function getPlayerByRole(roleName)
-                for _, player in ipairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player:FindFirstChild("Role") and player.Role.Value == roleName then
-                        return player
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).magnitude
+                    if distance < shortestDistance then
+                        closestTarget = player
+                        shortestDistance = distance
                     end
                 end
-                return nil
             end
 
-            -- Smooth aim function
-            local function smoothAimAt(targetPart)
-                local camera = workspace.CurrentCamera
-                if targetPart then
-                    local currentCFrame = camera.CFrame
-                    local targetCFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
-                    camera.CFrame = currentCFrame:Lerp(targetCFrame, 0.2) -- 0.2 = smoothing speed
-                end
-            end
+            return closestTarget
+        end
 
-            -- Initial role check, automatically turn off if Innocent
+        -- Function for smooth aiming (lerping the mouse position)
+        local function smoothAim(targetPosition)
+            local currentPos = Mouse.Hit.p
+            local newPos = currentPos:Lerp(targetPosition, smoothness)
+            Mousemoverel(newPos.X - currentPos.X, newPos.Y - currentPos.Y)
+        end
+
+        -- Auto-shoot toggle
+        local ToggleAutoShoot = Tab:CreateToggle({
+            Name = "Auto-shoot",
+            CurrentValue = false,
+            Flag = "AutoShootToggle",
+            Callback = function(Value)
+                autoShootEnabled = Value
+            end
+        })
+
+        -- The main aimbot logic
+        local function aimbot()
             local role = getRole()
-            if role ~= "Sheriff" and role ~= "Murderer" then
-               ToggleAimbot:Set(false) -- Auto turn off if Innocent
-               return
-            end
+            if role == "Sheriff" or role == "Murderer" then
+                -- If the player is Sheriff or Murderer, aim at the closest enemy
+                targetPlayer = getClosestTarget()
+                if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
+                    smoothAim(targetPosition)
 
-
-            -- Aimbot loop
-            AimbotConnection = RunService.RenderStepped:Connect(function()
-                local currentRole = getRole()
-                if currentRole ~= "Sheriff" and currentRole ~= "Murderer" then
-                    -- Auto turn off if role changes to Innocent mid-game
-                    Toggle:Set(false)
-                    return
-                end
-
-                if currentRole == "Sheriff" then
-                    local murderer = getPlayerByRole("Murderer")
-                    if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
-                        smoothAimAt(murderer.Character.HumanoidRootPart)
-                    end
-                elseif currentRole == "Murderer" then
-                    local sheriff = getPlayerByRole("Sheriff")
-                    if sheriff and sheriff.Character and sheriff.Character:FindFirstChild("HumanoidRootPart") then
-                        smoothAimAt(sheriff.Character.HumanoidRootPart)
+                    -- Auto-shoot if enabled and the player is aiming at a target
+                    if autoShootEnabled and targetPlayer.Character:FindFirstChild("Head") then
+                        local ray = Ray.new(Mouse.Hit.p, (targetPosition - Mouse.Hit.p).unit * 500)
+                        local hitPart, hitPosition = game:GetService("Workspace"):FindPartOnRay(ray, LocalPlayer.Character)
+                        if hitPart and hitPart.Parent == targetPlayer.Character then
+                            -- Trigger auto-shoot logic (assuming a Remote or function for shooting)
+                            -- Example:
+                            ReplicatedStorage:WaitForChild("ShootRemote"):FireServer() 
+                        end
                     end
                 end
-            end)
-
-            -- Save connection to disconnect later
-            LocalPlayer:SetAttribute("SmoothAimbotConnection", AimbotConnection)
-
-        else
-            -- Turn off aimbot if toggle is off
-            local LocalPlayer = game:GetService("Players").LocalPlayer
-            local connection = LocalPlayer:GetAttribute("SmoothAimbotConnection")
-            if connection then
-                connection:Disconnect()
-                LocalPlayer:SetAttribute("SmoothAimbotConnection", nil)
+            else
+                -- If the player is Innocent, turn off the aimbot
+                targetPlayer = nil
             end
         end
-    end,
+
+        -- Function to turn off aimbot when toggled off
+        local function disableAimbot()
+            targetPlayer = nil
+        end
+
+        -- Connect the aimbot to the RenderStepped to update every frame
+        table.insert(connections, RunService.RenderStepped:Connect(function()
+            if aimbotEnabled then
+                aimbot()
+            else
+                disableAimbot()
+            end
+        end))
+    end
 })
+
