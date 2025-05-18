@@ -179,17 +179,13 @@ local ToggleESP = Tab:CreateToggle({
 })
 
 
+-- Aimbot Toggle
 local ToggleAimbot = Tab:CreateToggle({
     Name = "Aimbot",
     CurrentValue = false,
     Flag = "AimbotToggle",
     Callback = function(Value)
-        local Players = game:GetService("Players")
-        local LocalPlayer = Players.LocalPlayer
-        local Mouse = LocalPlayer:GetMouse()
-        local RunService = game:GetService("RunService")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        
+        -- Local variables inside the callback
         local aimbotEnabled = Value
         local targetPlayer = nil
         local smoothness = 0.1 -- Smoothness factor for the aimbot
@@ -231,16 +227,6 @@ local ToggleAimbot = Tab:CreateToggle({
             Mousemoverel(newPos.X - currentPos.X, newPos.Y - currentPos.Y)
         end
 
-        -- Auto-shoot toggle
-        local ToggleAutoShoot = Tab:CreateToggle({
-            Name = "Auto-shoot",
-            CurrentValue = false,
-            Flag = "AutoShootToggle",
-            Callback = function(Value)
-                autoShootEnabled = Value
-            end
-        })
-
         -- The main aimbot logic
         local function aimbot()
             local role = getRole()
@@ -250,17 +236,6 @@ local ToggleAimbot = Tab:CreateToggle({
                 if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
                     local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
                     smoothAim(targetPosition)
-
-                    -- Auto-shoot if enabled and the player is aiming at a target
-                    if autoShootEnabled and targetPlayer.Character:FindFirstChild("Head") then
-                        local ray = Ray.new(Mouse.Hit.p, (targetPosition - Mouse.Hit.p).unit * 500)
-                        local hitPart, hitPosition = game:GetService("Workspace"):FindPartOnRay(ray, LocalPlayer.Character)
-                        if hitPart and hitPart.Parent == targetPlayer.Character then
-                            -- Trigger auto-shoot logic (assuming a Remote or function for shooting)
-                            -- Example:
-                            ReplicatedStorage:WaitForChild("ShootRemote"):FireServer() 
-                        end
-                    end
                 end
             else
                 -- If the player is Innocent, turn off the aimbot
@@ -273,14 +248,89 @@ local ToggleAimbot = Tab:CreateToggle({
             targetPlayer = nil
         end
 
-        -- Connect the aimbot to the RenderStepped to update every frame
+        -- Auto-Shoot functionality (will be dynamically created and removed)
+        local function createAutoShoot()
+            -- Function to perform Auto-Shoot when the conditions are met
+            local function autoShoot()
+                local targetPlayer = nil
+                local role = getRole()
+                if role == "Sheriff" or role == "Murderer" then
+                    targetPlayer = getClosestTarget()
+                    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
+                        -- Shoot logic
+                        local ray = Ray.new(Mouse.Hit.p, (targetPosition - Mouse.Hit.p).unit * 500)
+                        local hitPart, hitPosition = game:GetService("Workspace"):FindPartOnRay(ray, LocalPlayer.Character)
+                        if hitPart and hitPart.Parent == targetPlayer.Character then
+                            -- Trigger auto-shoot logic (assuming a Remote or function for shooting)
+                            -- Example:
+                            ReplicatedStorage:WaitForChild("ShootRemote"):FireServer() 
+                        end
+                    end
+                end
+            end
+
+            -- Connect the auto-shoot to the RenderStepped to update every frame
+            table.insert(connections, RunService.RenderStepped:Connect(function()
+                if autoShootEnabled then
+                    autoShoot()
+                end
+            end))
+        end
+
+        local function removeAutoShoot()
+            -- Clear all auto-shoot logic (disconnects all connections related to auto-shoot)
+            for _, conn in ipairs(connections) do
+                if conn and conn.Disconnect then
+                    conn:Disconnect()
+                end
+            end
+            connections = {} -- Reset the connections table
+        end
+
+        -- Enable or disable Auto-Shoot when the Aimbot toggle is updated
+        local function toggleAutoShoot(enabled)
+            autoShootEnabled = enabled
+            if autoShootEnabled then
+                createAutoShoot() -- Enable auto-shoot functionality
+            else
+                removeAutoShoot() -- Disable auto-shoot functionality
+            end
+        end
+
+        -- Update Aimbot status and Auto-Shoot status when the toggle changes
         table.insert(connections, RunService.RenderStepped:Connect(function()
             if aimbotEnabled then
                 aimbot()
+                -- If aimbot is enabled, we make sure auto-shoot is also enabled
+                if not autoShootEnabled then
+                    toggleAutoShoot(true) -- Automatically enable auto-shoot when aimbot is on
+                end
             else
                 disableAimbot()
+                -- When aimbot is turned off, disable auto-shoot first and then remove it
+                if autoShootEnabled then
+                    toggleAutoShoot(false)
+                end
             end
         end))
     end
 })
 
+-- Auto-Shoot Toggle (created inside the Aimbot Toggle callback)
+local ToggleAutoShoot = Tab:CreateToggle({
+    Name = "Auto-shoot",
+    CurrentValue = false,
+    Flag = "AutoShootToggle",
+    Callback = function(Value)
+        -- Auto-Shoot toggle will control the auto-shoot directly
+        local autoShootEnabled = Value
+        if autoShootEnabled then
+            -- Enable auto-shoot functionality
+            ToggleAimbot.Callback(true) -- Ensure aimbot is on if auto-shoot is enabled
+        else
+            -- Disable auto-shoot functionality
+            ToggleAimbot.Callback(false) -- Disable aimbot if auto-shoot is off
+        end
+    end
+})
