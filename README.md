@@ -150,3 +150,92 @@ local Toggle = Tab:CreateToggle({
         end
     end
 })
+
+local Toggle = Tab:CreateToggle({
+    Name = "Aimbot (Sheriff & Murderer)",
+    CurrentValue = false,
+    Flag = "SmoothRoleAimbotToggle",
+    Callback = function(Value)
+        if Value then
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local LocalPlayer = Players.LocalPlayer
+            local AimbotConnection
+
+            -- Role checks
+            local function getRole()
+                return LocalPlayer:FindFirstChild("Role") and LocalPlayer.Role.Value or nil
+            end
+
+            local function isSheriff()
+                return getRole() == "Sheriff"
+            end
+
+            local function isMurderer()
+                return getRole() == "Murderer"
+            end
+
+            -- Get the other role's player
+            local function getPlayerByRole(roleName)
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player:FindFirstChild("Role") and player.Role.Value == roleName then
+                        return player
+                    end
+                end
+                return nil
+            end
+
+            -- Smooth aim
+            local function smoothAimAt(targetPart)
+                local camera = workspace.CurrentCamera
+                if targetPart then
+                    local currentCFrame = camera.CFrame
+                    local targetCFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
+                    camera.CFrame = currentCFrame:Lerp(targetCFrame, 0.2)
+                end
+            end
+
+            -- Initial role check
+            local role = getRole()
+            if role ~= "Sheriff" and role ~= "Murderer" then
+                Toggle:Set(false) -- Auto turn off if Innocent
+                return
+            end
+
+            -- Aimbot loop
+            AimbotConnection = RunService.RenderStepped:Connect(function()
+                local currentRole = getRole()
+                if currentRole ~= "Sheriff" and currentRole ~= "Murderer" then
+                    -- Auto turn off if role changes to Innocent mid-game
+                    Toggle:Set(false)
+                    return
+                end
+
+                if currentRole == "Sheriff" then
+                    local murderer = getPlayerByRole("Murderer")
+                    if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+                        smoothAimAt(murderer.Character.HumanoidRootPart)
+                    end
+                elseif currentRole == "Murderer" then
+                    local sheriff = getPlayerByRole("Sheriff")
+                    if sheriff and sheriff.Character and sheriff.Character:FindFirstChild("HumanoidRootPart") then
+                        smoothAimAt(sheriff.Character.HumanoidRootPart)
+                    end
+                end
+            end)
+
+            -- Save connection
+            LocalPlayer:SetAttribute("SmoothAimbotConnection", AimbotConnection)
+
+        else
+            -- Turn off aimbot
+            local LocalPlayer = game:GetService("Players").LocalPlayer
+            local connection = LocalPlayer:GetAttribute("SmoothAimbotConnection")
+            if connection then
+                connection:Disconnect()
+                LocalPlayer:SetAttribute("SmoothAimbotConnection", nil)
+            end
+        end
+    end,
+})
+
