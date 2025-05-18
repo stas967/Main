@@ -36,7 +36,7 @@ local Window = Rayfield:CreateWindow({
 
 local Tab = Window:CreateTab("ESP | ", 4483362458) -- Title, Image
 
-local Toggle = Tab:CreateToggle({
+local ToggleESP = Tab:CreateToggle({
     Name = "Player ESP",
     CurrentValue = false,
     Flag = "ESPTracersToggle",
@@ -127,6 +127,30 @@ local Toggle = Tab:CreateToggle({
             connections = {}
         end
 
+        -- Add ESP for newly respawned players
+        local function onPlayerAdded(player)
+            -- When the player respawns
+            player.CharacterAdded:Connect(function(character)
+                wait(1) -- Wait for a moment to ensure the character is fully loaded
+                if espEnabled then
+                    createESP(player) -- Re-create ESP when respawned
+                end
+            end)
+
+            -- Remove ESP when the player dies
+            player.CharacterRemoving:Connect(function(character)
+                local highlight = character:FindFirstChild("ESP_Highlight")
+                if highlight then
+                    highlight:Destroy() -- Remove highlight when character dies
+                end
+            end)
+
+            -- Create ESP for the player if they are already in the game
+            if espEnabled then
+                createESP(player)
+            end
+        end
+
         if espEnabled then
             -- Apply to existing players (including local player)
             for _, player in pairs(Players:GetPlayers()) do
@@ -138,6 +162,9 @@ local Toggle = Tab:CreateToggle({
             -- Also apply ESP to the local player
             createSelfESP()
 
+            -- Handle respawning players
+            table.insert(connections, Players.PlayerAdded:Connect(onPlayerAdded))
+
             -- Update color every frame
             table.insert(connections, RunService.RenderStepped:Connect(function()
                 if espEnabled then
@@ -145,15 +172,6 @@ local Toggle = Tab:CreateToggle({
                 end
             end))
 
-            -- Handle respawning players
-            table.insert(connections, Players.PlayerAdded:Connect(function(player)
-                table.insert(connections, player.CharacterAdded:Connect(function()
-                    wait(1)
-                    if espEnabled then
-                        createESP(player)
-                    end
-                end))
-            end))
         else
             clearAllESP()
         end
