@@ -162,7 +162,7 @@ local Toggle = Tab:CreateToggle({
 
 
 local Toggle = Tab:CreateToggle({
-    Name = "Aimbot (Sheriff & Murderer)",
+    Name = "Smooth Aimbot (Sheriff & Murderer)",
     CurrentValue = false,
     Flag = "SmoothRoleAimbotToggle",
     Callback = function(Value)
@@ -185,7 +185,7 @@ local Toggle = Tab:CreateToggle({
                 return getRole() == "Murderer"
             end
 
-            -- Get the other role's player
+            -- Get the other role's player (exclude local player)
             local function getPlayerByRole(roleName)
                 for _, player in ipairs(Players:GetPlayers()) do
                     if player ~= LocalPlayer and player:FindFirstChild("Role") and player.Role.Value == roleName then
@@ -195,17 +195,17 @@ local Toggle = Tab:CreateToggle({
                 return nil
             end
 
-            -- Smooth aim
+            -- Smooth aim function
             local function smoothAimAt(targetPart)
                 local camera = workspace.CurrentCamera
                 if targetPart then
                     local currentCFrame = camera.CFrame
                     local targetCFrame = CFrame.new(camera.CFrame.Position, targetPart.Position)
-                    camera.CFrame = currentCFrame:Lerp(targetCFrame, 0.2)
+                    camera.CFrame = currentCFrame:Lerp(targetCFrame, 0.2) -- 0.2 = smoothing speed
                 end
             end
 
-            -- Initial role check
+            -- Initial role check, automatically turn off if Innocent
             local role = getRole()
             if role ~= "Sheriff" and role ~= "Murderer" then
                 Toggle:Set(false) -- Auto turn off if Innocent
@@ -234,11 +234,11 @@ local Toggle = Tab:CreateToggle({
                 end
             end)
 
-            -- Save connection
+            -- Save connection to disconnect later
             LocalPlayer:SetAttribute("SmoothAimbotConnection", AimbotConnection)
 
         else
-            -- Turn off aimbot
+            -- Turn off aimbot if toggle is off
             local LocalPlayer = game:GetService("Players").LocalPlayer
             local connection = LocalPlayer:GetAttribute("SmoothAimbotConnection")
             if connection then
@@ -248,4 +248,3 @@ local Toggle = Tab:CreateToggle({
         end
     end,
 })
-
